@@ -1,0 +1,76 @@
+# =============================================================================
+# NovaStore — Docker Compose
+# =============================================================================
+# Start:   docker compose up -d
+# Stop:    docker compose down
+# Logs:    docker compose logs -f <service>
+# =============================================================================
+
+services:
+  # ---------- API ----------
+  novastore-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: novastore-api
+    ports:
+      - "5000:8080"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ConnectionStrings__DefaultConnection=Host=novastore-db;Port=5432;Database=novastore;Username=postgres;Password=postgres
+      - ConnectionStrings__Redis=novastore-redis:6379
+    depends_on:
+      novastore-db:
+        condition: service_started
+      novastore-redis:
+        condition: service_started
+    networks:
+      - novastore-network
+    restart: unless-stopped
+
+  # ---------- PostgreSQL ----------
+  novastore-db:
+    image: postgres:16
+    container_name: novastore-db
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: novastore
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    volumes:
+      - novastore-pgdata:/var/lib/postgresql/data
+    networks:
+      - novastore-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d novastore"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  # ---------- Redis ----------
+  novastore-redis:
+    image: redis:7-alpine
+    container_name: novastore-redis
+    ports:
+      - "6379:6379"
+    networks:
+      - novastore-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+# ---------- Volumes ----------
+volumes:
+  novastore-pgdata:
+    driver: local
+
+# ---------- Networks ----------
+networks:
+  novastore-network:
+    driver: bridge

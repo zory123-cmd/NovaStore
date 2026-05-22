@@ -1,0 +1,70 @@
+# === .NET ===
+bin/
+obj/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+*.userprefs
+
+# NuGet
+**/[Pp]ackages/*
+!**/[Pp]ackages/build/
+*.nupkg
+**/[Pp]ackages/repositories.config
+**/packages.lock.json
+packet.lock.json
+
+# === Build ===
+[Dd]ebug/
+[Rr]elease/
+x64/
+x86/
+[Ww][Ii][Nn]32/
+[Aa][Rr][Mm]/
+[Aa][Rr][Mm]64/
+bld/
+[Bb]in/
+[Oo]bj/
+[Ll]og/
+[Ll]ogs/
+
+# === IDE ===
+.vs/
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# === User-specific appsettings ===
+appsettings.*.local.json
+appsettings.local.json
+
+# === React / Node.js ===
+node_modules/
+nova-store-ui/node_modules/
+nova-store-ui/dist/
+nova-store-ui/dist-ssr/
+nova-store-ui/*.local
+
+# === OS ===
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# === Test Results ===
+TestResults/
+coverage/
+*.coverage
+*.coverage.xml
+*.trx
+
+# === Docker ===
+docker-compose.override.yml
+
+# === Secrets ===
+*.key
+*.pem
+*.pfx
+*.secret

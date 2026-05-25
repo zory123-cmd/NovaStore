@@ -1,10 +1,10 @@
-using System.Globalization;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
-using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Options;
 using NovaStore.Application.DTOs;
 using NovaStore.Application.Interfaces;
-using NovaStore.Domain.Data;
+using NovaStore.Infrastructure.Data;
+using NovaStore.Infrastructure.Options;
 using NovaStore.Domain.Models;
 using NovaStore.Domain.Models.Enums;
 
@@ -12,25 +12,32 @@ namespace NovaStore.Application.Services
 {
     public class OrderService : IOrderService
     {
-        private readonly NovaStoreDbContext _context;
-        private readonly IConfiguration _configuration;
+        private static readonly Dictionary<OrderStatus, HashSet<OrderStatus>> AllowedTransitions = new()
+        {
+            [OrderStatus.Created] = new() { OrderStatus.Confirmed, OrderStatus.Cancelled },
+            [OrderStatus.Confirmed] = new() { OrderStatus.Shipped, OrderStatus.Cancelled },
+            [OrderStatus.Shipped] = new() { OrderStatus.Delivered },
+            [OrderStatus.Delivered] = new(),
+            [OrderStatus.Cancelled] = new()
+        };
 
-        public OrderService(NovaStoreDbContext context, IConfiguration configuration)
+        private readonly NovaStoreDbContext _context;
+        private readonly IOptions<PromoCodesSettings> _promoCodes;
+
+        public OrderService(NovaStoreDbContext context, IOptions<PromoCodesSettings> promoCodes)
         {
             _context = context;
-            _configuration = configuration;
+            _promoCodes = promoCodes;
         }
 
         public async Task<PagedResult<OrderDto>> GetAllAsync(int page = 1, int pageSize = 20)
         {
-            var query = _context.Orders
-                .Include(o => o.OrderItems)
-                .Include(o => o.ShippingAddress)
-                .OrderByDescending(o => o.OrderDate);
-
+            var query = _context.Orders.OrderByDescending(o => o.OrderDate);
             var totalCount = await query.CountAsync();
 
             var orders = await query
+                .Include(o => o.OrderItems)
+                .Include(o => o.ShippingAddress)
                 .Skip((page - 1) * pageSize)
                 .Take(pageSize)
                 .ToListAsync();
@@ -47,14 +54,14 @@ namespace NovaStore.Application.Services
         public async Task<PagedResult<OrderDto>> GetUserOrdersAsync(int userId, int page = 1, int pageSize = 20)
         {
             var query = _context.Orders
-                .Include(o => o.OrderItems)
-                .Include(o => o.ShippingAddress)
                 .Where(o => o.UserId == userId)
                 .OrderByDescending(o => o.OrderDate);
 
             var totalCount = await query.CountAsync();
 
             var orders = await query
+                .Include(o => o.OrderItems)
+                .Include(o => o.ShippingAddress)
                 .Skip((page - 1) * pageSize)
                 .Take(pageSize)
                 .ToListAsync();
@@ -112,8 +119,8 @@ namespace NovaStore.Application.Services
 
                 // Atomic stock decrement via raw SQL to prevent overselling
                 var rowsAffected = await _context.Database.ExecuteSqlRawAsync(
-                    "UPDATE \"Products\" SET \"StockQuantity\" = \"StockQuantity\" - {0}, \"UpdatedAt\" = NOW() WHERE \"Id\" = {1} AND \"StockQuantity\" >= {0}",
-                    item.Quantity, item.ProductId);
+                    "UPDATE \"Products\" SET \"StockQuantity\" = \"StockQuantity\" - {0}, \"UpdatedAt\" = {2} WHERE \"Id\" = {1} AND \"StockQuantity\" >= {0}",
+                    item.Quantity, item.ProductId, DateTime.UtcNow);
 
                 if (rowsAffected == 0)
                     throw new InvalidOperationException($"Not enough stock for '{item.Product.Name}'. Please refresh your cart.");
@@ -126,19 +133,14 @@ namespace NovaStore.Application.Services
             if (!string.IsNullOrWhiteSpace(dto.PromoCode))
             {
                 var promoCode = dto.PromoCode.ToUpper();
-                var promoConfig = _configuration.GetSection($"PromoCodes:{promoCode}");
-                if (!promoConfig.Exists())
+                var promoConfig = _promoCodes.Value.Codes.GetValueOrDefault(promoCode!);
+                if (promoConfig == null)
                     throw new InvalidOperationException($"Invalid promo code '{dto.PromoCode}'.");
 
-                var discountType = promoConfig["Type"];
-                var discountValue = decimal.TryParse(promoConfig["Value"] ?? "0", NumberStyles.Any, CultureInfo.InvariantCulture, out var parsedValue)
-                    ? parsedValue
-                    : 0m;
-
-                discountAmount = discountType?.ToUpper() switch
+                discountAmount = promoConfig.Type.ToUpper() switch
                 {
-                    "PERCENTAGE" => subtotal * discountValue / 100m,
-                    "FIXED" => discountValue,
+                    "PERCENTAGE" => subtotal * promoConfig.Value / 100m,
+                    "FIXED" => promoConfig.Value,
                     _ => throw new InvalidOperationException($"Invalid promo code configuration for '{dto.PromoCode}'.")
                 };
             }
@@ -210,6 +212,14 @@ namespace NovaStore.Application.Services
             {
                 if (!Enum.TryParse<OrderStatus>(dto.Status, ignoreCase: true, out var status))
                     throw new InvalidOperationException($"Invalid order status '{dto.Status}'.");
+
+                // Validate state transition
+                if (status != order.Status)
+                {
+                    if (!AllowedTransitions.TryGetValue(order.Status, out var allowed) || !allowed.Contains(status))
+                        throw new InvalidOperationException($"Cannot transition order status from {order.Status} to {status}.");
+                }
+
                 order.Status = status;
                 parsedStatus = status;
             }
@@ -248,6 +258,36 @@ namespace NovaStore.Application.Services
             order.DeletedAt = DateTime.UtcNow;
             await _context.SaveChangesAsync();
             return true;
+        }
+
+        public async Task<OrderDto> CancelOrderAsync(int id, int userId)
+        {
+            var order = await _context.Orders
+                .Include(o => o.OrderItems)
+                .FirstOrDefaultAsync(o => o.Id == id)
+                ?? throw new KeyNotFoundException($"Order with ID {id} not found.");
+
+            if (order.UserId != userId)
+                throw new UnauthorizedAccessException("You can only cancel your own orders.");
+
+            if (!AllowedTransitions.TryGetValue(order.Status, out var allowed) || !allowed.Contains(OrderStatus.Cancelled))
+                throw new InvalidOperationException($"Cannot cancel order in '{order.Status}' status.");
+
+            // Return stock for each product
+            foreach (var item in order.OrderItems)
+            {
+                var product = await _context.Products.FindAsync(item.ProductId);
+                if (product != null)
+                {
+                    product.StockQuantity += item.Quantity;
+                    product.UpdatedAt = DateTime.UtcNow;
+                }
+            }
+
+            order.Status = OrderStatus.Cancelled;
+            await _context.SaveChangesAsync();
+
+            return MapToDto(order);
         }
 
         private static OrderDto MapToDto(Order order)

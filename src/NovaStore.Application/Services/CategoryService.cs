@@ -1,7 +1,9 @@
+using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Distributed;
 using NovaStore.Application.DTOs;
 using NovaStore.Application.Interfaces;
-using NovaStore.Domain.Data;
+using NovaStore.Infrastructure.Data;
 using NovaStore.Domain.Models;
 
 namespace NovaStore.Application.Services
@@ -9,20 +11,32 @@ namespace NovaStore.Application.Services
     public class CategoryService : ICategoryService
     {
         private readonly NovaStoreDbContext _context;
+        private readonly IDistributedCache _cache;
 
-        public CategoryService(NovaStoreDbContext context)
+        public CategoryService(NovaStoreDbContext context, IDistributedCache cache)
         {
             _context = context;
+            _cache = cache;
         }
 
         public async Task<List<CategoryDto>> GetAllAsync()
         {
+            const string cacheKey = "categories:all";
+            var cached = await _cache.GetStringAsync(cacheKey);
+            if (cached != null)
+                return JsonSerializer.Deserialize<List<CategoryDto>>(cached) ?? new List<CategoryDto>();
+
             var categories = await _context.Categories
                 .Include(c => c.SubCategories)
                 .OrderBy(c => c.Name)
                 .ToListAsync();
 
-            return categories.Select(MapToDto).ToList();
+            var result = categories.Select(c => MapToDto(c)).ToList();
+
+            await _cache.SetStringAsync(cacheKey, JsonSerializer.Serialize(result),
+                new DistributedCacheEntryOptions { AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(10) });
+
+            return result;
         }
 
         public async Task<List<CategoryDto>> GetRootAsync()
@@ -79,6 +93,8 @@ namespace NovaStore.Application.Services
             _context.Categories.Add(category);
             await _context.SaveChangesAsync();
 
+            await _cache.RemoveAsync("categories:all");
+
             return MapToDto(category);
         }
 
@@ -93,6 +109,8 @@ namespace NovaStore.Application.Services
             if (dto.ImageUrl != null) category.ImageUrl = dto.ImageUrl;
 
             await _context.SaveChangesAsync();
+
+            await _cache.RemoveAsync("categories:all");
 
             return MapToDto(category);
         }
@@ -114,6 +132,7 @@ namespace NovaStore.Application.Services
 
             _context.Categories.Remove(category);
             await _context.SaveChangesAsync();
+            await _cache.RemoveAsync("categories:all");
             return true;
         }
 

@@ -6,7 +6,7 @@
 
 ## Архитектура
 
-Проект следует принципам **Clean Architecture** с чётким разделением слоёв:
+Проект следует принципам **Clean Architecture** с чётким разделением на четыре слоя:
 
 ```
 ┌──────────────────────────────────────┐
@@ -21,16 +21,21 @@
 │    NovaStore.Application — бизнес-   │
 │    логика, валидация (FluentValidation)│
 ├──────────────────────────────────────┤
-│    Domain (Models, Data, Enums)      │
-│    NovaStore.Domain — сущности, EF   │
-│    Core DbContext, миграции          │
+│    Infrastructure (Data, EF Core)    │
+│    NovaStore.Infrastructure — DbCtx, │
+│    миграции, Options (Jwt, Promo)    │
+├──────────────────────────────────────┤
+│    Domain (Models, Enums)            │
+│    NovaStore.Domain — чистые         │
+│    сущности, без EF Core             │
 └──────────────────────────────────────┘
 ```
 
-- **Domain** — модели (`Product`, `Category`, `Order`, `CartItem`, `Review`, `User`, `Address`, `OrderItem`), перечисления (`OrderStatus`, `PaymentStatus`, `ShippingStatus`), `DbContext` и миграции.
-- **Application** — сервисы бизнес-логики, DTO, интерфейсы, валидаторы FluentValidation.
-- **WebApi** — контроллеры, JWT-аутентификация, middleware обработки ошибок, Swagger, health checks, rate limiting.
-- **Frontend** — React 18 + TypeScript + Vite + Tailwind CSS.
+- **Domain** — чистые модели (`Product`, `Category`, `Order`, `CartItem`, `Review`, `User`, `Address`, `OrderItem`) и перечисления (`OrderStatus`, `PaymentStatus`, `ShippingStatus`). Не зависит от EF Core и внешних фреймворков.
+- **Application** — сервисы бизнес-логики, DTO, интерфейсы, валидаторы FluentValidation, единый `PasswordValidator`.
+- **Infrastructure** — `DbContext` с миграциями EF Core, Options-классы (`JwtSettings`, `PromoCodesSettings`), реализация репозиториев и инфраструктурных сервисов.
+- **WebApi** — контроллеры, JWT-аутентификация, middleware обработки ошибок, Swagger, health checks, rate limiting, CSP с nonce-токенами.
+- **Frontend** — React 19 + TypeScript + Vite + Tailwind CSS.
 
 ---
 
@@ -82,15 +87,21 @@
 - Оформление заказа из корзины
 - Выбор адреса доставки и способа оплаты
 - **Промокоды**: `WELCOME10` (скидка 10%), `SAVE50` (скидка 500 руб.)
-- Статусы заказа: `Created → Confirmed → Shipped → Delivered / Cancelled`
+- **Автомат состояний заказа** — валидация переходов между статусами:
+  - `Created → Confirmed`, `Created → Cancelled`
+  - `Confirmed → Shipped`, `Confirmed → Cancelled`
+  - `Shipped → Delivered`
+  - `Delivered`, `Cancelled` — конечные состояния (переход запрещён)
 - Статусы оплаты: `Pending → Paid → Failed → Refunded`
 - Статусы доставки: `Pending → Shipped → Delivered`
+- Отмена заказа через `POST /api/orders/{id}/cancel` (до отгрузки)
 - Автоматическое списание товара со склада
 
 ### Отзывы
 - Рейтинг от 1 до 5
 - Защита от дубликатов (один отзыв на товар от пользователя)
 - Возможность редактирования и удаления своего отзыва
+- Атомарное сохранение рейтинга и отзыва (транзакционная целостность)
 
 ### Пользователи
 - Регистрация и JWT-аутентификация
@@ -109,14 +120,13 @@
 
 ```
 C:\opencode\NovaStore\
+├── .env.example                # Шаблон переменных окружения
 ├── docker-compose.yml          # PostgreSQL + Redis + API
 ├── Dockerfile                  # Multi-stage .NET 9 build
 ├── NovaStore.sln               # Решение .NET
 │
 ├── src/
-│   ├── NovaStore.Domain/       # Сущности, EF Core, миграции
-│   │   ├── Data/
-│   │   │   └── NovaStoreDbContext.cs
+│   ├── NovaStore.Domain/       # Чистые модели и перечисления
 │   │   ├── Models/
 │   │   │   ├── Product.cs
 │   │   │   ├── Category.cs
@@ -133,6 +143,8 @@ C:\opencode\NovaStore\
 │   │   └── NovaStore.Domain.csproj
 │   │
 │   ├── NovaStore.Application/  # Бизнес-логика, DTO, валидация
+│   │   ├── Common/
+│   │   │   └── PasswordValidator.cs
 │   │   ├── DTOs/
 │   │   │   └── MarketplaceDto.cs
 │   │   ├── Interfaces/
@@ -153,8 +165,21 @@ C:\opencode\NovaStore\
 │   │   │   └── UserService.cs
 │   │   └── NovaStore.Application.csproj
 │   │
+│   ├── NovaStore.Infrastructure/  # EF Core, миграции, конфигурация
+│   │   ├── Data/
+│   │   │   ├── NovaStoreDbContext.cs
+│   │   │   └── Migrations/
+│   │   │       ├── 20260522141521_InitialCreate.cs
+│   │   │       ├── 20260522141521_InitialCreate.Designer.cs
+│   │   │       └── NovaStoreDbContextModelSnapshot.cs
+│   │   ├── Options/
+│   │   │   ├── JwtSettings.cs
+│   │   │   └── PromoCodesSettings.cs
+│   │   └── NovaStore.Infrastructure.csproj
+│   │
 │   └── NovaStore.WebApi/       # ASP.NET Core Web API
 │       ├── Controllers/
+│       │   ├── BaseController.cs        # Абстрактный базовый контроллер
 │       │   ├── AuthController.cs
 │       │   ├── ProductsController.cs
 │       │   ├── CategoriesController.cs
@@ -183,11 +208,17 @@ C:\opencode\NovaStore\
 │   └── tsconfig.json
 │
 └── tests/
-    └── NovaStore.WebApi.Tests/ # xUnit + Moq тесты
+    └── NovaStore.WebApi.Tests/ # xUnit + Moq тесты (всего 50)
         ├── Controllers/
         │   ├── AuthControllerTests.cs
         │   ├── CartControllerTests.cs
-        │   └── ProductsControllerTests.cs
+        │   ├── CategoriesControllerTests.cs
+        │   ├── OrdersControllerTests.cs
+        │   ├── ProductsControllerTests.cs
+        │   ├── ReviewsControllerTests.cs
+        │   └── UsersControllerTests.cs
+        ├── Services/
+        │   └── OrderServiceTests.cs
         └── NovaStore.WebApi.Tests.csproj
 ```
 
@@ -239,6 +270,7 @@ C:\opencode\NovaStore\
 | GET | `/api/orders/{id}` | JWT | Заказ по ID |
 | POST | `/api/orders` | JWT | Оформление заказа из корзины |
 | PUT | `/api/orders/{id}/status` | Admin | Обновление статуса заказа |
+| POST | `/api/orders/{id}/cancel` | JWT | Отмена заказа (до отгрузки) |
 | DELETE | `/api/orders/{id}` | Admin | Удаление заказа |
 
 ### Отзывы (`/api/reviews`)
@@ -333,10 +365,12 @@ dotnet ef database update
 
 | Переменная | Описание | Значение по умолчанию |
 |-----------|----------|----------------------|
-| `JWT_KEY` | Секретный ключ для подписи JWT (мин. 32 символа) | **Обязателен.** Приложение падает при старте, если ключ не задан или короче 32 символов. Указывается в `Jwt:Key` `appsettings.json` или через переменную окружения |
+| `JWT_KEY` | Секретный ключ для подписи JWT (мин. 32 символа) | **Обязателен.** Задаётся только через переменную окружения или `.env`-файл (не читается из `appsettings.json`) |
 | `ConnectionStrings__DefaultConnection` | Строка подключения к PostgreSQL | `Host=localhost;Port=5432;Database=novastore;Username=postgres;Password=postgres` |
 | `ConnectionStrings__Redis` | Адрес Redis | `localhost:6379` |
 | `ASPNETCORE_ENVIRONMENT` | Среда выполнения | `Development` / `Production` |
+
+> **Важно:** `JWT_KEY` строго обязателен при любом окружении. В отличие от остальных настроек, он читается **только** из переменной окружения или `.env`-файла — fallback на `appsettings.json` отсутствует. При запуске через Docker обязательно задайте его в `.env`-файле. Ключ должен быть длиной не менее 32 символов.
 
 JWT настройки в `appsettings.json`:
 
@@ -350,7 +384,14 @@ JWT настройки в `appsettings.json`:
 }
 ```
 
-> **Важно:** `JWT_KEY` обязателен при любом окружении. При запуске через Docker обязательно задайте его в `.env`-файле или переменной окружения. Ключ должен быть длиной не менее 32 символов.
+### Быстрый старт: настройка JWT_KEY
+
+Скопируйте и заполните `.env.example`:
+
+```bash
+cp .env.example .env
+# Отредактируйте .env, заменив JWT_KEY на свой секретный ключ
+```
 
 ---
 
@@ -403,10 +444,19 @@ dotnet test
 dotnet test --logger "console;verbosity=detailed"
 ```
 
-Тесты написаны с использованием **xUnit** и **Moq**. **17/17 тестов проходят.** Покрытие включает:
+Тесты написаны с использованием **xUnit** и **Moq**. **50 тестов, все проходят.** Покрытие включает:
+
+### Контроллеры (7 файлов)
 - `AuthControllerTests` — регистрация, логин, валидация, конфликты, неверные credentials
 - `CartControllerTests` — работа корзины (добавление, обновление, удаление, очистка, проверка остатков)
+- `CategoriesControllerTests` — CRUD категорий, иерархия, кэширование
+- `OrdersControllerTests` — создание заказа, отмена, получение, валидация статусов
 - `ProductsControllerTests` — CRUD товаров, фильтрация, пагинация
+- `ReviewsControllerTests` — создание, редактирование, удаление отзывов, транзакционность
+- `UsersControllerTests` — профиль, адреса, смена пароля
+
+### Сервисы (1 файл)
+- `OrderServiceTests` — автомат состояний заказа (валидация переходов статусов), отмена, бизнес-логика
 
 ---
 
@@ -416,3 +466,23 @@ dotnet test --logger "console;verbosity=detailed"
 ```
 http://localhost:5000/swagger
 ```
+
+---
+
+## Безопасность
+
+| Мера | Описание |
+|------|----------|
+| **JWT-аутентификация** | Bearer-токены с настраиваемым временем жизни (по умолчанию 1440 мин.) |
+| **JWT_KEY из среды** | Секретный ключ читается строго из переменной окружения — fallback на `appsettings.json` отсутствует |
+| **CSP с nonce** | Content-Security-Policy использует nonce-токен вместо `'unsafe-inline'` для скриптов и стилей |
+| **Единый PasswordValidator** | Централизованная валидация пароля в `Application/Common/PasswordValidator.cs` |
+| **BCrypt** | Хеширование паролей через BCrypt.Net-Next |
+| **Rate Limiting** | 100 запросов/мин глобально, 5 запросов/мин на аутентификацию |
+| **Error Handling Middleware** | Централизованная обработка ошибок без раскрытия стека в production |
+
+---
+
+## Кэширование
+
+Категории кэшируются в **Redis** на **10 минут** для ускорения загрузки каталога. Инвалидация кэша происходит при создании, обновлении или удалении категории.

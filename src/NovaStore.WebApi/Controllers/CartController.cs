@@ -1,4 +1,3 @@
-using System.Security.Claims;
 using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -10,7 +9,7 @@ namespace NovaStore.WebApi.Controllers
     [ApiController]
     [Route("api/cart")]
     [Authorize]
-    public class CartController : ControllerBase
+    public class CartController : BaseController
     {
         private readonly ICartService _cartService;
         private readonly IValidator<AddToCartDto> _addToCartValidator;
@@ -24,14 +23,6 @@ namespace NovaStore.WebApi.Controllers
             _cartService = cartService;
             _addToCartValidator = addToCartValidator;
             _updateCartItemValidator = updateCartItemValidator;
-        }
-
-        private int GetUserId()
-        {
-            var claim = User.FindFirstValue(ClaimTypes.NameIdentifier);
-            if (string.IsNullOrEmpty(claim) || !int.TryParse(claim, out var userId))
-                throw new UnauthorizedAccessException("Invalid user token.");
-            return userId;
         }
 
         [HttpGet]

@@ -24,6 +24,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\NovaStore.Application\NovaStore.Application.csproj" />
+    <ProjectReference Include="..\NovaStore.Infrastructure\NovaStore.Infrastructure.csproj" />
   </ItemGroup>
 
 </Project>

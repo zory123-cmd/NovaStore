@@ -10,5 +10,6 @@ namespace NovaStore.Application.Interfaces
         Task<OrderDto> CreateFromCartAsync(int userId, CreateOrderDto dto);
         Task<OrderDto?> UpdateStatusAsync(int id, UpdateOrderDto dto);
         Task<bool> DeleteAsync(int id);
+        Task<OrderDto> CancelOrderAsync(int id, int userId);
     }
 }

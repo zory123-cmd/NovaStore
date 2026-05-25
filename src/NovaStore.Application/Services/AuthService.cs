@@ -2,11 +2,12 @@ using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using NovaStore.Application.DTOs;
 using NovaStore.Application.Interfaces;
-using NovaStore.Domain.Data;
+using NovaStore.Infrastructure.Data;
+using NovaStore.Infrastructure.Options;
 using NovaStore.Domain.Models;
 
 namespace NovaStore.Application.Services
@@ -14,12 +15,12 @@ namespace NovaStore.Application.Services
     public class AuthService : IAuthService
     {
         private readonly NovaStoreDbContext _context;
-        private readonly IConfiguration _configuration;
+        private readonly IOptions<JwtSettings> _jwtSettings;
 
-        public AuthService(NovaStoreDbContext context, IConfiguration configuration)
+        public AuthService(NovaStoreDbContext context, IOptions<JwtSettings> jwtSettings)
         {
             _context = context;
-            _configuration = configuration;
+            _jwtSettings = jwtSettings;
         }
 
         public async Task<LoginResponseDto> RegisterAsync(RegisterUserDto dto)
@@ -70,9 +71,7 @@ namespace NovaStore.Application.Services
 
         private string GenerateJwtToken(User user)
         {
-            var jwtSettings = _configuration.GetSection("Jwt");
-            var jwtKey = Environment.GetEnvironmentVariable("JWT_KEY") ?? jwtSettings["Key"]
-                ?? throw new InvalidOperationException("JWT key not configured.");
+            var jwtKey = Environment.GetEnvironmentVariable("JWT_KEY") ?? throw new InvalidOperationException("JWT_KEY environment variable is required.");
             if (jwtKey.Length < 32)
                 throw new InvalidOperationException("JWT key must be at least 32 characters long.");
             var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey));
@@ -87,10 +86,10 @@ namespace NovaStore.Application.Services
             };
 
             var token = new JwtSecurityToken(
-                issuer: jwtSettings["Issuer"],
-                audience: jwtSettings["Audience"],
+                issuer: _jwtSettings.Value.Issuer,
+                audience: _jwtSettings.Value.Audience,
                 claims: claims,
-                expires: DateTime.UtcNow.AddMinutes(double.Parse(jwtSettings["ExpireMinutes"] ?? "1440")),
+                expires: DateTime.UtcNow.AddMinutes(_jwtSettings.Value.ExpireMinutes),
                 signingCredentials: credentials
             );
 

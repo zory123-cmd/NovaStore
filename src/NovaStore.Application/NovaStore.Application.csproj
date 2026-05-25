@@ -2,6 +2,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\NovaStore.Domain\NovaStore.Domain.csproj" />
+    <ProjectReference Include="..\NovaStore.Infrastructure\NovaStore.Infrastructure.csproj" />
   </ItemGroup>
 
   <PropertyGroup>

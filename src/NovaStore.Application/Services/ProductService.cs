@@ -3,7 +3,7 @@ using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.EntityFrameworkCore;
 using NovaStore.Application.DTOs;
 using NovaStore.Application.Interfaces;
-using NovaStore.Domain.Data;
+using NovaStore.Infrastructure.Data;
 using NovaStore.Domain.Models;
 
 namespace NovaStore.Application.Services

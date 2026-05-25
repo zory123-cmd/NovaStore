@@ -8,7 +8,8 @@ using Microsoft.OpenApi.Models;
 using NovaStore.Application.DTOs;
 using NovaStore.Application.Interfaces;
 using NovaStore.Application.Services;
-using NovaStore.Domain.Data;
+using NovaStore.Infrastructure.Data;
+using NovaStore.Infrastructure.Options;
 using NovaStore.WebApi.Middleware;
 using Serilog;
 
@@ -73,15 +74,19 @@ builder.Services.AddCors(options =>
     });
 });
 
+// Options pattern
+builder.Services.Configure<JwtSettings>(builder.Configuration.GetSection("Jwt"));
+builder.Services.Configure<PromoCodesSettings>(builder.Configuration.GetSection("PromoCodes"));
+
 // JWT Authentication
-var jwtSettings = builder.Configuration.GetSection("Jwt");
-var jwtKeyString = Environment.GetEnvironmentVariable("JWT_KEY") ?? jwtSettings["Key"];
-if (string.IsNullOrEmpty(jwtKeyString) || jwtKeyString.Length < 32)
+var jwtKey = Environment.GetEnvironmentVariable("JWT_KEY") 
+    ?? throw new InvalidOperationException("JWT_KEY environment variable is required.");
+if (jwtKey.Length < 32)
 {
-    Log.Fatal("JWT_KEY is not configured or is too short (minimum 32 characters). Set the JWT_KEY environment variable or Jwt:Key in configuration.");
-    throw new InvalidOperationException("JWT key is not configured or is too short (minimum 32 characters).");
+    Log.Fatal("JWT_KEY is too short (minimum 32 characters).");
+    throw new InvalidOperationException("JWT key is too short (minimum 32 characters).");
 }
-var jwtKey = Encoding.UTF8.GetBytes(jwtKeyString);
+var jwtKeyBytes = Encoding.UTF8.GetBytes(jwtKey);
 
 builder.Services.AddAuthentication(options =>
 {
@@ -96,9 +101,9 @@ builder.Services.AddAuthentication(options =>
         ValidateAudience = true,
         ValidateLifetime = true,
         ValidateIssuerSigningKey = true,
-        ValidIssuer = jwtSettings["Issuer"],
-        ValidAudience = jwtSettings["Audience"],
-        IssuerSigningKey = new SymmetricSecurityKey(jwtKey)
+        ValidIssuer = builder.Configuration["Jwt:Issuer"],
+        ValidAudience = builder.Configuration["Jwt:Audience"],
+        IssuerSigningKey = new SymmetricSecurityKey(jwtKeyBytes)
     };
 });
 

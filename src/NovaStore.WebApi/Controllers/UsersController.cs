@@ -1,4 +1,3 @@
-using System.Security.Claims;
 using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -10,7 +9,7 @@ namespace NovaStore.WebApi.Controllers
     [ApiController]
     [Route("api/users")]
     [Authorize]
-    public class UsersController : ControllerBase
+    public class UsersController : BaseController
     {
         private readonly IUserService _userService;
         private readonly IValidator<ChangePasswordDto> _changePasswordValidator;
@@ -27,14 +26,6 @@ namespace NovaStore.WebApi.Controllers
             _changePasswordValidator = changePasswordValidator;
             _createAddressValidator = createAddressValidator;
             _updateUserValidator = updateUserValidator;
-        }
-
-        private int GetUserId()
-        {
-            var claim = User.FindFirstValue(ClaimTypes.NameIdentifier);
-            if (string.IsNullOrEmpty(claim) || !int.TryParse(claim, out var userId))
-                throw new UnauthorizedAccessException("Invalid user token.");
-            return userId;
         }
 
         [HttpGet("profile")]

@@ -1,5 +1,6 @@
 using FluentValidation;
 using System.Text.Json.Serialization;
+using NovaStore.Application.Common;
 
 namespace NovaStore.Application.DTOs
 {
@@ -328,7 +329,7 @@ namespace NovaStore.Application.DTOs
         {
             RuleFor(x => x.Username).NotEmpty().Length(3, 50);
             RuleFor(x => x.Email).NotEmpty().EmailAddress().MaximumLength(100);
-            RuleFor(x => x.Password).NotEmpty().Length(8, 100);
+            RuleFor(x => x.Password).SetValidator(new PasswordValidator());
             RuleFor(x => x.FullName).MaximumLength(100);
             RuleFor(x => x.Phone).MaximumLength(20);
         }
@@ -373,11 +374,7 @@ namespace NovaStore.Application.DTOs
         public ChangePasswordDtoValidator()
         {
             RuleFor(x => x.CurrentPassword).NotEmpty();
-            RuleFor(x => x.NewPassword)
-                .NotEmpty()
-                .Length(8, 100)
-                .Matches(@"^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^\da-zA-Z]).{8,}$")
-                .WithMessage("Password must contain at least one uppercase letter, one lowercase letter, one digit, and one special character.");
+            RuleFor(x => x.NewPassword).SetValidator(new PasswordValidator());
         }
     }
 

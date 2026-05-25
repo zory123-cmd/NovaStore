@@ -1,7 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using NovaStore.Application.DTOs;
 using NovaStore.Application.Interfaces;
-using NovaStore.Domain.Data;
+using NovaStore.Infrastructure.Data;
 using NovaStore.Domain.Models;
 
 namespace NovaStore.Application.Services
@@ -61,9 +61,8 @@ namespace NovaStore.Application.Services
             };
 
             _context.Reviews.Add(review);
-            await _context.SaveChangesAsync();
-
             await UpdateProductRating(dto.ProductId);
+            await _context.SaveChangesAsync();
 
             await _context.Entry(review).Reference(r => r.User).LoadAsync();
             return MapToDto(review);
@@ -82,8 +81,8 @@ namespace NovaStore.Application.Services
             review.Comment = dto.Comment;
             review.UpdatedAt = DateTime.UtcNow;
 
-            await _context.SaveChangesAsync();
             await UpdateProductRating(review.ProductId);
+            await _context.SaveChangesAsync();
 
             return MapToDto(review);
         }
@@ -98,9 +97,8 @@ namespace NovaStore.Application.Services
 
             var productId = review.ProductId;
             _context.Reviews.Remove(review);
-            await _context.SaveChangesAsync();
-
             await UpdateProductRating(productId);
+            await _context.SaveChangesAsync();
             return true;
         }
 
@@ -121,7 +119,6 @@ namespace NovaStore.Application.Services
 
             product.AverageRating = stats?.Avg;
             product.ReviewsCount = stats?.Count ?? 0;
-            await _context.SaveChangesAsync();
         }
 
         private static ReviewDto MapToDto(Review review)

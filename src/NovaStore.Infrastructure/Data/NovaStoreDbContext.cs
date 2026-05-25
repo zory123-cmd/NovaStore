@@ -3,7 +3,7 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using NovaStore.Domain.Models;
 using NovaStore.Domain.Models.Enums;
 
-namespace NovaStore.Domain.Data
+namespace NovaStore.Infrastructure.Data
 {
     public class NovaStoreDbContext : DbContext
     {

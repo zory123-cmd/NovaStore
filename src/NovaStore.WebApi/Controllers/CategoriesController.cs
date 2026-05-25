@@ -8,7 +8,7 @@ namespace NovaStore.WebApi.Controllers
 {
     [ApiController]
     [Route("api/categories")]
-    public class CategoriesController : ControllerBase
+    public class CategoriesController : BaseController
     {
         private readonly ICategoryService _categoryService;
         private readonly IValidator<CreateCategoryDto> _createValidator;

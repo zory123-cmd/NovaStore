@@ -1,4 +1,3 @@
-using System.Security.Claims;
 using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -9,7 +8,7 @@ namespace NovaStore.WebApi.Controllers
 {
     [ApiController]
     [Route("api/reviews")]
-    public class ReviewsController : ControllerBase
+    public class ReviewsController : BaseController
     {
         private readonly IReviewService _reviewService;
         private readonly IValidator<CreateReviewDto> _createReviewValidator;
@@ -18,14 +17,6 @@ namespace NovaStore.WebApi.Controllers
         {
             _reviewService = reviewService;
             _createReviewValidator = createReviewValidator;
-        }
-
-        private int GetUserId()
-        {
-            var claim = User.FindFirstValue(ClaimTypes.NameIdentifier);
-            if (string.IsNullOrEmpty(claim) || !int.TryParse(claim, out var userId))
-                throw new UnauthorizedAccessException("Invalid user token.");
-            return userId;
         }
 
         [HttpGet("product/{productId}")]

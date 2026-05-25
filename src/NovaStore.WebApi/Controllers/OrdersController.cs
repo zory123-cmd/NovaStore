@@ -1,5 +1,4 @@
 using System.ComponentModel.DataAnnotations;
-using System.Security.Claims;
 using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -11,7 +10,7 @@ namespace NovaStore.WebApi.Controllers
     [ApiController]
     [Route("api/orders")]
     [Authorize]
-    public class OrdersController : ControllerBase
+    public class OrdersController : BaseController
     {
         private readonly IOrderService _orderService;
         private readonly IValidator<CreateOrderDto> _createOrderValidator;
@@ -20,14 +19,6 @@ namespace NovaStore.WebApi.Controllers
         {
             _orderService = orderService;
             _createOrderValidator = createOrderValidator;
-        }
-
-        private int GetUserId()
-        {
-            var claim = User.FindFirstValue(ClaimTypes.NameIdentifier);
-            if (string.IsNullOrEmpty(claim) || !int.TryParse(claim, out var userId))
-                throw new UnauthorizedAccessException("Invalid user token.");
-            return userId;
         }
 
         [HttpGet]
@@ -91,6 +82,28 @@ namespace NovaStore.WebApi.Controllers
             if (order == null)
                 return NotFound(new { message = $"Order with ID {id} not found." });
             return Ok(order);
+        }
+
+        [HttpPost("{id}/cancel")]
+        public async Task<IActionResult> CancelOrder(int id)
+        {
+            try
+            {
+                var order = await _orderService.CancelOrderAsync(id, GetUserId());
+                return Ok(order);
+            }
+            catch (KeyNotFoundException ex)
+            {
+                return NotFound(new { message = ex.Message });
+            }
+            catch (UnauthorizedAccessException)
+            {
+                return Forbid();
+            }
+            catch (InvalidOperationException ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
         }
 
         [HttpDelete("{id}")]

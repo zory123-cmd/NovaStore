@@ -9,7 +9,7 @@ namespace NovaStore.WebApi.Controllers
     [ApiController]
     [Route("api/auth")]
     [EnableRateLimiting("Auth")]
-    public class AuthController : ControllerBase
+    public class AuthController : BaseController
     {
         private readonly IAuthService _authService;
         private readonly IValidator<RegisterUserDto> _registerValidator;

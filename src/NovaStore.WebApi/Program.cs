@@ -76,15 +76,10 @@ builder.Services.AddCors(options =>
 // JWT Authentication
 var jwtSettings = builder.Configuration.GetSection("Jwt");
 var jwtKeyString = Environment.GetEnvironmentVariable("JWT_KEY") ?? jwtSettings["Key"];
-if (string.IsNullOrEmpty(jwtKeyString))
+if (string.IsNullOrEmpty(jwtKeyString) || jwtKeyString.Length < 32)
 {
-    Log.Warning("JWT_KEY environment variable not set and no Key in configuration. Using a default development key - this is INSECURE and should only be used for development.");
-    jwtKeyString = "NovaStore-DevKey-Minimum-32-Characters-Long!";
-}
-if (jwtKeyString.Length < 32)
-{
-    Log.Fatal("JWT key must be at least 32 characters long.");
-    throw new InvalidOperationException("JWT key must be at least 32 characters long.");
+    Log.Fatal("JWT_KEY is not configured or is too short (minimum 32 characters). Set the JWT_KEY environment variable or Jwt:Key in configuration.");
+    throw new InvalidOperationException("JWT key is not configured or is too short (minimum 32 characters).");
 }
 var jwtKey = Encoding.UTF8.GetBytes(jwtKeyString);
 
@@ -186,8 +181,12 @@ if (app.Environment.IsDevelopment())
 // Middleware pipeline
 app.UseSerilogRequestLogging();
 app.UseErrorHandlingMiddleware();
+app.UseSecurityHeadersMiddleware();
 app.UseRateLimiter();
 app.UseCors();
+app.UseHttpsRedirection();
+app.UseAuthentication();
+app.UseAuthorization();
 app.UseResponseCaching();
 
 if (app.Environment.IsDevelopment())
@@ -197,9 +196,6 @@ if (app.Environment.IsDevelopment())
     app.MapOpenApi();
 }
 
-app.UseHttpsRedirection();
-app.UseAuthentication();
-app.UseAuthorization();
 app.MapControllers();
 app.MapHealthChecks("/health");
 

@@ -67,15 +67,22 @@ namespace NovaStore.Domain.Data
                 entity.HasIndex(o => o.UserId);
                 entity.HasIndex(o => o.Status);
                 entity.HasIndex(o => o.OrderDate);
-                entity.Property(o => o.Status).HasConversion(orderStatusConverter).HasDefaultValue("Created");
-                entity.Property(o => o.PaymentStatus).HasConversion(paymentStatusConverter).HasDefaultValue("Pending");
-                entity.Property(o => o.ShippingStatus).HasConversion(shippingStatusConverter).HasDefaultValue("Pending");
+                entity.Property(o => o.Status).HasConversion(orderStatusConverter).HasDefaultValue(OrderStatus.Created).HasColumnType("varchar(50)");
+                entity.Property(o => o.PaymentStatus).HasConversion(paymentStatusConverter).HasDefaultValue(PaymentStatus.Pending).HasColumnType("varchar(50)");
+                entity.Property(o => o.ShippingStatus).HasConversion(shippingStatusConverter).HasDefaultValue(ShippingStatus.Pending).HasColumnType("varchar(50)");
                 entity.Property(o => o.OrderDate).HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                entity.HasOne(o => o.User)
+                    .WithMany(u => u.Orders)
+                    .HasForeignKey(o => o.UserId)
+                    .OnDelete(DeleteBehavior.Restrict);
 
                 entity.HasOne(o => o.ShippingAddress)
                     .WithMany()
                     .HasForeignKey(o => o.ShippingAddressId)
                     .OnDelete(DeleteBehavior.SetNull);
+
+                entity.HasQueryFilter(o => o.DeletedAt == null);
             });
 
             // OrderItem

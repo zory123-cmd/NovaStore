@@ -1,3 +1,5 @@
+using System.Text.Json;
+using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.EntityFrameworkCore;
 using NovaStore.Application.DTOs;
 using NovaStore.Application.Interfaces;
@@ -9,10 +11,12 @@ namespace NovaStore.Application.Services
     public class ProductService : IProductService
     {
         private readonly NovaStoreDbContext _context;
+        private readonly Microsoft.Extensions.Caching.Distributed.IDistributedCache _cache;
 
-        public ProductService(NovaStoreDbContext context)
+        public ProductService(NovaStoreDbContext context, Microsoft.Extensions.Caching.Distributed.IDistributedCache cache)
         {
             _context = context;
+            _cache = cache;
         }
 
         public async Task<PagedResult<ProductDto>> SearchProductsAsync(ProductSearchDto searchDto)
@@ -20,6 +24,7 @@ namespace NovaStore.Application.Services
             var query = _context.Products
                 .Include(p => p.Category)
                 .AsQueryable();
+            query = query.AsNoTracking();
 
             // Filter by active only if not specified
             if (searchDto.IsActive == null)
@@ -75,17 +80,37 @@ namespace NovaStore.Application.Services
 
         public async Task<ProductDto?> GetByIdAsync(int id)
         {
+            var cacheKey = $"product:{id}";
+            var cached = await _cache.GetStringAsync(cacheKey);
+            if (cached != null)
+            {
+                return JsonSerializer.Deserialize<ProductDto>(cached);
+            }
+
             var product = await _context.Products
                 .Include(p => p.Category)
+                .AsNoTracking()
                 .FirstOrDefaultAsync(p => p.Id == id);
 
-            return product == null ? null : MapToDto(product);
+            if (product == null) return null;
+
+            var dto = MapToDto(product);
+
+            // Cache for 10 minutes
+            var cacheOptions = new Microsoft.Extensions.Caching.Distributed.DistributedCacheEntryOptions
+            {
+                AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(10)
+            };
+            await _cache.SetStringAsync(cacheKey, JsonSerializer.Serialize(dto), cacheOptions);
+
+            return dto;
         }
 
         public async Task<PagedResult<ProductDto>> GetByCategoryAsync(int categoryId, int page = 1, int pageSize = 20)
         {
             var query = _context.Products
                 .Include(p => p.Category)
+                .AsNoTracking()
                 .Where(p => p.CategoryId == categoryId && p.IsActive)
                 .OrderByDescending(p => p.CreatedAt);
 
@@ -128,6 +153,8 @@ namespace NovaStore.Application.Services
             _context.Products.Add(product);
             await _context.SaveChangesAsync();
 
+            await _cache.RemoveAsync($"product:{product.Id}");
+
             return MapToDto(product);
         }
 
@@ -155,6 +182,8 @@ namespace NovaStore.Application.Services
             product.UpdatedAt = DateTime.UtcNow;
             await _context.SaveChangesAsync();
 
+            await _cache.RemoveAsync($"product:{id}");
+
             return MapToDto(product);
         }
 
@@ -167,6 +196,8 @@ namespace NovaStore.Application.Services
             product.IsActive = false;
             product.UpdatedAt = DateTime.UtcNow;
             await _context.SaveChangesAsync();
+
+            await _cache.RemoveAsync($"product:{id}");
             return true;
         }
 

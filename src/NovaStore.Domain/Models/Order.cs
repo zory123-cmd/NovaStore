@@ -41,6 +41,8 @@ namespace NovaStore.Domain.Models
         public Enums.PaymentStatus PaymentStatus { get; set; } = Enums.PaymentStatus.Pending;
         public Enums.ShippingStatus ShippingStatus { get; set; } = Enums.ShippingStatus.Pending;
 
+        public DateTime? DeletedAt { get; set; }
+
         // Navigation
         public ICollection<OrderItem> OrderItems { get; set; } = new List<OrderItem>();
     }

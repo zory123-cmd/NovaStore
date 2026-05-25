@@ -82,15 +82,15 @@ namespace NovaStore.Application.Services
             return MapToDto(category);
         }
 
-        public async Task<CategoryDto?> UpdateAsync(int id, string? name, string? description, string? imageUrl)
+        public async Task<CategoryDto?> UpdateAsync(int id, UpdateCategoryDto dto)
         {
             var category = await _context.Categories.FindAsync(id);
             if (category == null)
                 return null;
 
-            if (name != null) category.Name = name;
-            if (description != null) category.Description = description;
-            if (imageUrl != null) category.ImageUrl = imageUrl;
+            if (dto.Name != null) category.Name = dto.Name;
+            if (dto.Description != null) category.Description = dto.Description;
+            if (dto.ImageUrl != null) category.ImageUrl = dto.ImageUrl;
 
             await _context.SaveChangesAsync();
 

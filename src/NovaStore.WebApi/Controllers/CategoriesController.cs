@@ -12,11 +12,16 @@ namespace NovaStore.WebApi.Controllers
     {
         private readonly ICategoryService _categoryService;
         private readonly IValidator<CreateCategoryDto> _createValidator;
+        private readonly IValidator<UpdateCategoryDto> _updateValidator;
 
-        public CategoriesController(ICategoryService categoryService, IValidator<CreateCategoryDto> createValidator)
+        public CategoriesController(
+            ICategoryService categoryService,
+            IValidator<CreateCategoryDto> createValidator,
+            IValidator<UpdateCategoryDto> updateValidator)
         {
             _categoryService = categoryService;
             _createValidator = createValidator;
+            _updateValidator = updateValidator;
         }
 
         [HttpGet]
@@ -77,9 +82,13 @@ namespace NovaStore.WebApi.Controllers
 
         [HttpPut("{id}")]
         [Authorize(Roles = "Admin")]
-        public async Task<IActionResult> Update(int id, [FromBody] UpdateCategoryRequest request)
+        public async Task<IActionResult> Update(int id, [FromBody] UpdateCategoryDto dto)
         {
-            var category = await _categoryService.UpdateAsync(id, request.Name, request.Description, request.ImageUrl);
+            var validationResult = await _updateValidator.ValidateAsync(dto);
+            if (!validationResult.IsValid)
+                return BadRequest(validationResult.Errors);
+
+            var category = await _categoryService.UpdateAsync(id, dto);
             if (category == null)
                 return NotFound(new { message = $"Category with ID {id} not found." });
             return Ok(category);
@@ -101,12 +110,5 @@ namespace NovaStore.WebApi.Controllers
                 return BadRequest(new { message = ex.Message });
             }
         }
-    }
-
-    public class UpdateCategoryRequest
-    {
-        public string? Name { get; set; }
-        public string? Description { get; set; }
-        public string? ImageUrl { get; set; }
     }
 }

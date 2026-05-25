@@ -17,13 +17,14 @@ services:
       - "5000:8080"
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
+      - JWT_KEY=${JWT_KEY:?JWT_KEY is required. Set it in .env file or environment}
       - ConnectionStrings__DefaultConnection=Host=novastore-db;Port=5432;Database=novastore;Username=postgres;Password=postgres
       - ConnectionStrings__Redis=novastore-redis:6379
     depends_on:
       novastore-db:
-        condition: service_started
+        condition: service_healthy
       novastore-redis:
-        condition: service_started
+        condition: service_healthy
     networks:
       - novastore-network
     restart: unless-stopped

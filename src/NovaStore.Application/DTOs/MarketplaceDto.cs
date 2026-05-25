@@ -127,6 +127,23 @@ namespace NovaStore.Application.DTOs
         }
     }
 
+    public class UpdateCategoryDto
+    {
+        public string? Name { get; set; }
+        public string? Description { get; set; }
+        public string? ImageUrl { get; set; }
+    }
+
+    public class UpdateCategoryDtoValidator : AbstractValidator<UpdateCategoryDto>
+    {
+        public UpdateCategoryDtoValidator()
+        {
+            RuleFor(x => x.Name).Length(1, 100).When(x => x.Name != null);
+            RuleFor(x => x.Description).MaximumLength(500).When(x => x.Description != null);
+            RuleFor(x => x.ImageUrl).MaximumLength(500).When(x => x.ImageUrl != null);
+        }
+    }
+
     // ========== Cart DTOs ==========
     public class CartItemDto
     {
@@ -361,6 +378,16 @@ namespace NovaStore.Application.DTOs
                 .Length(8, 100)
                 .Matches(@"^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^\da-zA-Z]).{8,}$")
                 .WithMessage("Password must contain at least one uppercase letter, one lowercase letter, one digit, and one special character.");
+        }
+    }
+
+    public class UpdateUserDtoValidator : AbstractValidator<UpdateUserDto>
+    {
+        public UpdateUserDtoValidator()
+        {
+            RuleFor(x => x.FullName).MaximumLength(100).When(x => x.FullName != null);
+            RuleFor(x => x.Phone).MaximumLength(20).When(x => x.Phone != null);
+            RuleFor(x => x.AvatarUrl).MaximumLength(500).When(x => x.AvatarUrl != null);
         }
     }
 

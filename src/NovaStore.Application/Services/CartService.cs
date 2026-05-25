@@ -19,6 +19,7 @@ namespace NovaStore.Application.Services
         {
             var items = await _context.CartItems
                 .Include(ci => ci.Product)
+                .AsNoTracking()
                 .Where(ci => ci.UserId == userId)
                 .OrderByDescending(ci => ci.CreatedAt)
                 .ToListAsync();
@@ -116,9 +117,9 @@ namespace NovaStore.Application.Services
         public async Task<decimal> GetCartTotalAsync(int userId)
         {
             return await _context.CartItems
-                .Include(ci => ci.Product)
                 .Where(ci => ci.UserId == userId)
-                .SumAsync(ci => ci.Product != null ? ci.Product.Price * ci.Quantity : 0);
+                .Select(ci => ci.Product != null ? ci.Product.Price * ci.Quantity : 0)
+                .SumAsync();
         }
 
         private static CartItemDto MapToDto(CartItem item)

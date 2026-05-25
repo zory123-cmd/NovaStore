@@ -15,15 +15,18 @@ namespace NovaStore.WebApi.Controllers
         private readonly IUserService _userService;
         private readonly IValidator<ChangePasswordDto> _changePasswordValidator;
         private readonly IValidator<CreateAddressDto> _createAddressValidator;
+        private readonly IValidator<UpdateUserDto> _updateUserValidator;
 
         public UsersController(
             IUserService userService,
             IValidator<ChangePasswordDto> changePasswordValidator,
-            IValidator<CreateAddressDto> createAddressValidator)
+            IValidator<CreateAddressDto> createAddressValidator,
+            IValidator<UpdateUserDto> updateUserValidator)
         {
             _userService = userService;
             _changePasswordValidator = changePasswordValidator;
             _createAddressValidator = createAddressValidator;
+            _updateUserValidator = updateUserValidator;
         }
 
         private int GetUserId()
@@ -46,6 +49,10 @@ namespace NovaStore.WebApi.Controllers
         [HttpPut("profile")]
         public async Task<IActionResult> UpdateProfile([FromBody] UpdateUserDto dto)
         {
+            var validationResult = await _updateUserValidator.ValidateAsync(dto);
+            if (!validationResult.IsValid)
+                return BadRequest(validationResult.Errors);
+
             var user = await _userService.UpdateProfileAsync(GetUserId(), dto);
             if (user == null)
                 return NotFound(new { message = "User not found." });

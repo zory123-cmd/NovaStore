@@ -53,6 +53,7 @@ namespace NovaStore.Application.Services
         {
             var addresses = await _context.Addresses
                 .Where(a => a.UserId == userId)
+                .AsNoTracking()
                 .OrderByDescending(a => a.IsDefault)
                 .ThenByDescending(a => a.CreatedAt)
                 .ToListAsync();

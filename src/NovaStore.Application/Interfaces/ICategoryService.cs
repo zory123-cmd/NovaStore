@@ -9,7 +9,7 @@ namespace NovaStore.Application.Interfaces
         Task<CategoryDto?> GetByIdAsync(int id);
         Task<List<CategoryDto>> GetSubcategoriesAsync(int id);
         Task<CategoryDto> CreateAsync(CreateCategoryDto dto);
-        Task<CategoryDto?> UpdateAsync(int id, string? name, string? description, string? imageUrl);
+        Task<CategoryDto?> UpdateAsync(int id, UpdateCategoryDto dto);
         Task<bool> DeleteAsync(int id);
     }
 }

@@ -1,3 +1,4 @@
+using System.ComponentModel.DataAnnotations;
 using System.Security.Claims;
 using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
@@ -31,16 +32,16 @@ namespace NovaStore.WebApi.Controllers
 
         [HttpGet]
         [Authorize(Roles = "Admin")]
-        public async Task<IActionResult> GetAll()
+        public async Task<IActionResult> GetAll([FromQuery][Range(1, 10000)] int page = 1, [FromQuery][Range(1, 100)] int pageSize = 20)
         {
-            var orders = await _orderService.GetAllAsync();
+            var orders = await _orderService.GetAllAsync(page, pageSize);
             return Ok(orders);
         }
 
         [HttpGet("my")]
-        public async Task<IActionResult> GetMyOrders()
+        public async Task<IActionResult> GetMyOrders([FromQuery][Range(1, 10000)] int page = 1, [FromQuery][Range(1, 100)] int pageSize = 20)
         {
-            var orders = await _orderService.GetUserOrdersAsync(GetUserId());
+            var orders = await _orderService.GetUserOrdersAsync(GetUserId(), page, pageSize);
             return Ok(orders);
         }
 

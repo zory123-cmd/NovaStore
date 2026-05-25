@@ -109,14 +109,18 @@ namespace NovaStore.Application.Services
             var product = await _context.Products.FindAsync(productId);
             if (product == null) return;
 
-            var avg = await _context.Reviews
+            var stats = await _context.Reviews
                 .Where(r => r.ProductId == productId)
-                .AverageAsync(r => (double?)r.Rating);
+                .GroupBy(r => 1)
+                .Select(g => new
+                {
+                    Avg = (double?)g.Average(r => r.Rating),
+                    Count = g.Count()
+                })
+                .FirstOrDefaultAsync();
 
-            product.AverageRating = avg;
-            product.ReviewsCount = await _context.Reviews
-                .CountAsync(r => r.ProductId == productId);
-
+            product.AverageRating = stats?.Avg;
+            product.ReviewsCount = stats?.Count ?? 0;
             await _context.SaveChangesAsync();
         }
 
